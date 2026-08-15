@@ -93,9 +93,18 @@ START_RELOC_NUMBERS (elf_xtensa_reloc_type)
      RELOC_NUMBER (R_XTENSA_NDIFF8, 60)
      RELOC_NUMBER (R_XTENSA_NDIFF16, 61)
      RELOC_NUMBER (R_XTENSA_NDIFF32, 62)
-     /* FDPIC relocations, per the Xtensa FDPIC ABI (matching the Linux
-	kernel and uClibc-ng definitions).  */
+     /* FDPIC relocations.  R_XTENSA_SYM32, R_XTENSA_FUNCDESC,
+	R_XTENSA_FUNCDESC_VALUE and R_XTENSA_TLSDESC match the uClibc-ng
+	definitions.  The GOT family occupies the numbers that uClibc-ng
+	leaves unassigned between them; its members are only ever
+	produced and consumed by the linker and the dynamic loader, so
+	the numbering only needs to be consistent across this toolchain
+	and uClibc-ng.  */
      RELOC_NUMBER (R_XTENSA_SYM32, 63)
+     RELOC_NUMBER (R_XTENSA_GOT, 64)
+     RELOC_NUMBER (R_XTENSA_GOTOFF, 65)
+     RELOC_NUMBER (R_XTENSA_GOTFUNCDESC, 66)
+     RELOC_NUMBER (R_XTENSA_GOTOFFFUNCDESC, 67)
      RELOC_NUMBER (R_XTENSA_FUNCDESC, 68)
      RELOC_NUMBER (R_XTENSA_FUNCDESC_VALUE, 69)
      RELOC_NUMBER (R_XTENSA_TLSDESC, 72)

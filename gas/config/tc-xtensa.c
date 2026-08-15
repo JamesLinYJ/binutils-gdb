@@ -351,9 +351,13 @@ op_placement_info_table op_placement_table;
 #define O_tlscall	O_md7	/* TLS_CALL relocation */
 #define O_tpoff		O_md8	/* TPOFF relocation */
 #define O_dtpoff	O_md9	/* DTPOFF relocation */
-#define O_funcdesc	O_md10	/* FDPIC function descriptor address */
-#define O_funcdesc_value O_md11	/* FDPIC function descriptor value */
-#define O_sym32		O_md12	/* FDPIC 32-bit symbol reference */
+#define O_got		O_md10	/* FDPIC GOT slot offset */
+#define O_gotoff	O_md11	/* FDPIC GOT-relative offset */
+#define O_gotfuncdesc	O_md12	/* FDPIC GOT slot holding a descriptor address */
+#define O_gotofffuncdesc O_md13	/* FDPIC GOT-relative descriptor offset */
+#define O_funcdesc	O_md14	/* FDPIC function descriptor address */
+#define O_funcdesc_value O_md15	/* FDPIC function descriptor value */
+#define O_sym32		O_md16	/* FDPIC 32-bit symbol reference */
 
 struct suffix_reloc_map
 {
@@ -376,6 +380,13 @@ static struct suffix_reloc_map suffix_relocs[] =
   SUFFIX_MAP ("tlscall", BFD_RELOC_XTENSA_TLS_CALL,	O_tlscall),
   SUFFIX_MAP ("tpoff",	BFD_RELOC_XTENSA_TLS_TPOFF,	O_tpoff),
   SUFFIX_MAP ("dtpoff",	BFD_RELOC_XTENSA_TLS_DTPOFF,	O_dtpoff),
+  /* Suffix lookup compares the full identifier plus its length, so
+     the shared "got" prefix between these entries is harmless.  */
+  SUFFIX_MAP ("got",	BFD_RELOC_XTENSA_GOT,		O_got),
+  SUFFIX_MAP ("gotoff",	BFD_RELOC_XTENSA_GOTOFF,	O_gotoff),
+  SUFFIX_MAP ("gotfuncdesc", BFD_RELOC_XTENSA_GOTFUNCDESC,	O_gotfuncdesc),
+  SUFFIX_MAP ("gotofffuncdesc", BFD_RELOC_XTENSA_GOTOFFFUNCDESC,
+	      O_gotofffuncdesc),
   SUFFIX_MAP ("funcdesc", BFD_RELOC_XTENSA_FUNCDESC,	O_funcdesc),
   SUFFIX_MAP ("funcdesc_value", BFD_RELOC_XTENSA_FUNCDESC_VALUE,
 	      O_funcdesc_value),
@@ -1718,7 +1729,11 @@ xtensa_elf_cons (int nbytes)
 		       && reloc <= BFD_RELOC_XTENSA_SLOT14_ALT))
 	    as_bad (_("opcode-specific %s relocation used outside "
 		      "an instruction"), reloc_howto->name);
-	  else if ((reloc == BFD_RELOC_XTENSA_FUNCDESC
+	  else if ((reloc == BFD_RELOC_XTENSA_GOT
+		    || reloc == BFD_RELOC_XTENSA_GOTOFF
+		    || reloc == BFD_RELOC_XTENSA_GOTFUNCDESC
+		    || reloc == BFD_RELOC_XTENSA_GOTOFFFUNCDESC
+		    || reloc == BFD_RELOC_XTENSA_FUNCDESC
 		    || reloc == BFD_RELOC_XTENSA_FUNCDESC_VALUE
 		    || reloc == BFD_RELOC_XTENSA_SYM32)
 		   && !fdpic)
@@ -3357,6 +3372,16 @@ xg_valid_literal_expression (const expressionS *exp)
     case O_tlsarg:
     case O_tpoff:
     case O_dtpoff:
+    /* FDPIC references are ordinary link-time constants and may live
+       in literal pools like any other symbolic expression, except
+       O_funcdesc_value, whose 8-byte descriptor cannot fit a pool
+       entry.  */
+    case O_got:
+    case O_gotoff:
+    case O_gotfuncdesc:
+    case O_gotofffuncdesc:
+    case O_funcdesc:
+    case O_sym32:
       return true;
     default:
       return false;
@@ -4288,6 +4313,15 @@ xg_assemble_literal (/* const */ TInsn *insn)
     case O_tlsarg:
     case O_tpoff:
     case O_dtpoff:
+    /* FDPIC references in literal pools become fixups against the
+       original symbol, exactly like the other relocation-bearing
+       operators above.  */
+    case O_got:
+    case O_gotoff:
+    case O_gotfuncdesc:
+    case O_gotofffuncdesc:
+    case O_funcdesc:
+    case O_sym32:
       p = frag_more (litsize);
       xtensa_set_frag_assembly_state (frag_now);
       reloc = map_operator_to_reloc (emit_val->X_op, true);
@@ -5992,17 +6026,36 @@ xtensa_elf_section_change_hook (void)
 }
 
 
-/* tc_fix_adjustable hook */
+/* tc_fix_adjustable hook.  A fixup is adjustable when the assembler
+   may rewrite it against a section symbol plus an offset instead of
+   keeping the original symbol reference.  */
 
 bool
 xtensa_fix_adjustable (fixS *fixP)
 {
-  /* We need the symbol name for the VTABLE entries.  */
-  if (fixP->fx_r_type == BFD_RELOC_VTABLE_INHERIT
-      || fixP->fx_r_type == BFD_RELOC_VTABLE_ENTRY)
-    return 0;
+  switch (fixP->fx_r_type)
+    {
+    /* These must keep the symbol name for the VTABLE machinery.  */
+    case BFD_RELOC_VTABLE_INHERIT:
+    case BFD_RELOC_VTABLE_ENTRY:
+      return false;
 
-  return 1;
+    /* FDPIC relocations must keep the symbol name too: the linker
+       assigns function descriptor slots and GOT slots per symbol, so
+       replacing the reference with a section-relative one would merge
+       unrelated slots.  */
+    case BFD_RELOC_XTENSA_GOT:
+    case BFD_RELOC_XTENSA_GOTOFF:
+    case BFD_RELOC_XTENSA_GOTFUNCDESC:
+    case BFD_RELOC_XTENSA_GOTOFFFUNCDESC:
+    case BFD_RELOC_XTENSA_FUNCDESC:
+    case BFD_RELOC_XTENSA_FUNCDESC_VALUE:
+    case BFD_RELOC_XTENSA_SYM32:
+      return false;
+
+    default:
+      return true;
+    }
 }
 
 
@@ -6161,6 +6214,10 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg)
     case BFD_RELOC_XTENSA_SLOT12_ALT:
     case BFD_RELOC_XTENSA_SLOT13_ALT:
     case BFD_RELOC_XTENSA_SLOT14_ALT:
+    case BFD_RELOC_XTENSA_GOT:
+    case BFD_RELOC_XTENSA_GOTOFF:
+    case BFD_RELOC_XTENSA_GOTFUNCDESC:
+    case BFD_RELOC_XTENSA_GOTOFFFUNCDESC:
     case BFD_RELOC_XTENSA_FUNCDESC:
     case BFD_RELOC_XTENSA_FUNCDESC_VALUE:
     case BFD_RELOC_XTENSA_SYM32:

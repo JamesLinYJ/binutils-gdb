@@ -347,16 +347,28 @@ static reloc_howto_type elf_howto_table[] =
   HOWTO (R_XTENSA_NDIFF32, 0, 4, 32, false, 0, complain_overflow_bitfield,
 	 bfd_elf_xtensa_reloc, "R_XTENSA_NDIFF32", false, 0, 0xffffffff, false),
 
-  /* FDPIC relocations (Xtensa FDPIC ABI, matching the Linux kernel and
-     uClibc-ng definitions).  R_XTENSA_FUNCDESC_VALUE covers the full
-     8-byte function descriptor { entry_point, got_value }.  */
+  /* FDPIC relocations.  SYM32, FUNCDESC, FUNCDESC_VALUE and TLSDESC
+     match the uClibc-ng definitions; the GOT family occupies the
+     numbers uClibc-ng leaves unassigned between them.  The howto
+     entries are plain 32-bit stores: the linker resolves the FDPIC
+     semantics itself and only uses these for size and overflow
+     checking.  R_XTENSA_FUNCDESC_VALUE spans the full 8-byte function
+     descriptor { entry_point, got_value }, hence bitsize 64.  */
   HOWTO (R_XTENSA_SYM32, 0, 4, 32, false, 0, complain_overflow_bitfield,
 	 bfd_elf_generic_reloc, "R_XTENSA_SYM32",
 	 false, 0, 0xffffffff, false),
-  EMPTY_HOWTO (64),
-  EMPTY_HOWTO (65),
-  EMPTY_HOWTO (66),
-  EMPTY_HOWTO (67),
+  HOWTO (R_XTENSA_GOT, 0, 4, 32, false, 0, complain_overflow_bitfield,
+	 bfd_elf_generic_reloc, "R_XTENSA_GOT",
+	 false, 0, 0xffffffff, false),
+  HOWTO (R_XTENSA_GOTOFF, 0, 4, 32, false, 0, complain_overflow_bitfield,
+	 bfd_elf_generic_reloc, "R_XTENSA_GOTOFF",
+	 false, 0, 0xffffffff, false),
+  HOWTO (R_XTENSA_GOTFUNCDESC, 0, 4, 32, false, 0,
+	 complain_overflow_bitfield, bfd_elf_generic_reloc,
+	 "R_XTENSA_GOTFUNCDESC", false, 0, 0xffffffff, false),
+  HOWTO (R_XTENSA_GOTOFFFUNCDESC, 0, 4, 32, false, 0,
+	 complain_overflow_bitfield, bfd_elf_generic_reloc,
+	 "R_XTENSA_GOTOFFFUNCDESC", false, 0, 0xffffffff, false),
   HOWTO (R_XTENSA_FUNCDESC, 0, 4, 32, false, 0, complain_overflow_bitfield,
 	 bfd_elf_generic_reloc, "R_XTENSA_FUNCDESC",
 	 false, 0, 0xffffffff, false),
@@ -448,6 +460,22 @@ elf_xtensa_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
     case BFD_RELOC_XTENSA_PLT:
       TRACE ("BFD_RELOC_XTENSA_PLT");
       return &elf_howto_table[(unsigned) R_XTENSA_PLT ];
+
+    case BFD_RELOC_XTENSA_GOT:
+      TRACE ("BFD_RELOC_XTENSA_GOT");
+      return &elf_howto_table[(unsigned) R_XTENSA_GOT ];
+
+    case BFD_RELOC_XTENSA_GOTOFF:
+      TRACE ("BFD_RELOC_XTENSA_GOTOFF");
+      return &elf_howto_table[(unsigned) R_XTENSA_GOTOFF ];
+
+    case BFD_RELOC_XTENSA_GOTFUNCDESC:
+      TRACE ("BFD_RELOC_XTENSA_GOTFUNCDESC");
+      return &elf_howto_table[(unsigned) R_XTENSA_GOTFUNCDESC ];
+
+    case BFD_RELOC_XTENSA_GOTOFFFUNCDESC:
+      TRACE ("BFD_RELOC_XTENSA_GOTOFFFUNCDESC");
+      return &elf_howto_table[(unsigned) R_XTENSA_GOTOFFFUNCDESC ];
 
     case BFD_RELOC_XTENSA_FUNCDESC:
       TRACE ("BFD_RELOC_XTENSA_FUNCDESC");
