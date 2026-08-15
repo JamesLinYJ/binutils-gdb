@@ -659,6 +659,32 @@ static const bfd_byte elf_xtensa_be_plt_entry[][PLT_ENTRY_SIZE] =
     }
 };
 
+/* FDPIC PLT entry, call0 ABI.  Loads the callee's descriptor through
+   the GOT (the literal holds the GOTOFFFUNCDESC offset, patched at
+   creation time), replaces A11 with the callee's GOT value, and jumps
+   through the entry point.  Exactly PLT_ENTRY_SIZE bytes, like the
+   regular entries.  */
+
+static const bfd_byte elf_xtensa_be_fdpic_plt_entry[PLT_ENTRY_SIZE] =
+{
+  0x00, 0x00, 0x81,	/* l32r  a8, [gotofffuncdesc literal] */
+  0x80, 0x88, 0xb0,	/* add   a8, a8, a11 */
+  0x01, 0x28, 0xb2,	/* l32i  a11, a8, 4 */
+  0x00, 0x28, 0x82,	/* l32i  a8, a8, 0 */
+  0x00, 0x08, 0xa0,	/* jx    a8 */
+  0			/* unused */
+};
+
+static const bfd_byte elf_xtensa_le_fdpic_plt_entry[PLT_ENTRY_SIZE] =
+{
+  0x81, 0x00, 0x00,	/* l32r  a8, [gotofffuncdesc literal] */
+  0xb0, 0x88, 0x80,	/* add   a8, a8, a11 */
+  0xb2, 0x28, 0x01,	/* l32i  a11, a8, 4 */
+  0x82, 0x28, 0x00,	/* l32i  a8, a8, 0 */
+  0xa0, 0x08, 0x00,	/* jx    a8 */
+  0			/* unused */
+};
+
 static const bfd_byte elf_xtensa_le_plt_entry[][PLT_ENTRY_SIZE] =
 {
     {
@@ -1554,6 +1580,52 @@ elf_xtensa_check_relocs (bfd *abfd,
 	case R_XTENSA_PLT:
 	  tls_type = GOT_NORMAL;
 	  is_plt = true;
+
+	  /* In an FDPIC object the PLT entry loads the callee's
+	     descriptor through a GOT slot, so the symbol needs a
+	     descriptor slot and a GOT family slot like GOTFUNCDESC.  */
+	  if (elf_elfheader (abfd)->e_ident[EI_OSABI]
+	      == ELFOSABI_XTENSA_FDPIC)
+	    {
+	      if (!elf_xtensa_create_fdpic_sections (abfd, info)
+		  || !elf_xtensa_bump_funcdesc (abfd, h, eh, r_symndx))
+		return false;
+	      if (h)
+		{
+		  if (eh->gotfamily_refcount == 0)
+		    {
+		      eh->gotfamily_refcount = 1;
+		      if (!elf_xtensa_bump_rofixup (abfd, h, eh, r_symndx))
+			return false;
+		    }
+		}
+	      else
+		{
+		  if (elf_xtensa_local_gotfamily_refcounts (abfd) == NULL)
+		    {
+		      bfd_size_type size = symtab_hdr->sh_info;
+		      void *mem;
+
+		      mem = bfd_zalloc (abfd, size * sizeof (bfd_signed_vma));
+		      if (mem == NULL)
+			return false;
+		      elf_xtensa_local_gotfamily_refcounts (abfd)
+			= (bfd_signed_vma *) mem;
+
+		      mem = bfd_zalloc (abfd, size * sizeof (bfd_vma));
+		      if (mem == NULL)
+			return false;
+		      elf_xtensa_local_gotfamily_offsets (abfd)
+			= (bfd_vma *) mem;
+		    }
+		  if (elf_xtensa_local_gotfamily_refcounts (abfd) [r_symndx] == 0)
+		    {
+		      elf_xtensa_local_gotfamily_refcounts (abfd) [r_symndx] = 1;
+		      if (!elf_xtensa_bump_rofixup (abfd, NULL, NULL, r_symndx))
+			return false;
+		    }
+		}
+	    }
 	  break;
 
 	case R_XTENSA_GNU_VTINHERIT:
@@ -1922,13 +1994,20 @@ elf_xtensa_allocate_dynrelocs (struct elf_link_hash_entry *h, void *arg)
     htab->elf.srelgot->size += (h->got.refcount * sizeof (Elf32_External_Rela));
 
   /* Dynamic symbols referenced through descriptors are resolved by
-     the dynamic linker: one R_XTENSA_FUNCDESC record for the
-     referencing site and one R_XTENSA_FUNCDESC_VALUE record for the
-     8-byte descriptor.  */
-  if (elf_xtensa_dynamic_symbol_p (h, info) && eh->funcdesc_refcount > 0)
-    htab->elf.srelgot->size += 2 * sizeof (Elf32_External_Rela);
-  if (elf_xtensa_dynamic_symbol_p (h, info) && eh->funcdesc_value_refcount > 0)
-    htab->elf.srelgot->size += sizeof (Elf32_External_Rela);
+     the dynamic linker.  A plain FUNCDESC reference takes one
+     R_XTENSA_FUNCDESC record for the referencing site plus one
+     R_XTENSA_FUNCDESC_VALUE record for the descriptor; a PLT
+     reference takes only the VALUE record (its site holds a
+     GOT-relative slot offset, resolved through JMP_SLOT).  */
+  if (elf_xtensa_dynamic_symbol_p (h, info))
+    {
+      if (eh->funcdesc_reloc_count > 0)
+	htab->elf.srelgot->size += 2 * sizeof (Elf32_External_Rela);
+      if (eh->funcdesc_refcount > eh->funcdesc_reloc_count)
+	htab->elf.srelgot->size += sizeof (Elf32_External_Rela);
+      if (eh->funcdesc_value_refcount > 0)
+	htab->elf.srelgot->size += sizeof (Elf32_External_Rela);
+    }
 
   return true;
 }
@@ -2093,13 +2172,14 @@ elf_xtensa_fill_funcdesc_slot (bfd *output_bfd, struct bfd_link_info *info,
 }
 
 /* Like elf_xtensa_fill_funcdesc_slot, but for symbols the dynamic
-   linker resolves at run time: the descriptor words are emitted by
-   the loader (R_XTENSA_FUNCDESC_VALUE), so this variant only marks
-   the slot as consumed and returns its runtime address.  */
+   linker resolves at run time: the descriptor words are filled by the
+   loader, so this variant emits one R_XTENSA_FUNCDESC_VALUE record
+   for the slot on its first use and returns the slot's runtime
+   address.  */
 
 static bfd_vma
-elf_xtensa_fill_funcdesc_slot_dynamic (bfd *output_bfd ATTRIBUTE_UNUSED,
-				       struct bfd_link_info *info ATTRIBUTE_UNUSED,
+elf_xtensa_fill_funcdesc_slot_dynamic (bfd *output_bfd,
+				       struct bfd_link_info *info,
 				       struct elf_xtensa_link_hash_table *htab,
 				       bfd *input_bfd,
 				       struct elf_link_hash_entry *h,
@@ -2112,7 +2192,14 @@ elf_xtensa_fill_funcdesc_slot_dynamic (bfd *output_bfd ATTRIBUTE_UNUSED,
 		       + htab->sgotfuncdesc->output_offset
 		       + (*pdesc & ~1));
 
-  *pdesc |= 1;
+  if (!(*pdesc & 1))
+    {
+      *pdesc |= 1;
+      elf_xtensa_add_dynreloc (output_bfd, htab->elf.srelgot, desc_addr,
+			      R_XTENSA_FUNCDESC_VALUE, 0,
+			      h ? h->dynindx : 0);
+      (void) info;
+    }
   return desc_addr;
 }
 
@@ -3020,18 +3107,22 @@ int xtensa_abi_choice (void)
     return elf32xtensa_abi;
 }
 
-/* Set up an entry in the procedure linkage table.  */
+/* Set up an entry in the procedure linkage table.  FDPIC_DESC_ADDR is
+   the descriptor address for an FDPIC entry, or (bfd_vma) -1 for a
+   regular one.  */
 
 static bfd_vma
 elf_xtensa_create_plt_entry (struct bfd_link_info *info,
 			     bfd *output_bfd,
-			     unsigned reloc_index)
+			     unsigned reloc_index,
+			     bfd_vma fdpic_desc_addr)
 {
   asection *splt, *sgotplt;
   bfd_vma plt_base, got_base;
   bfd_vma code_offset, lit_offset, abi_offset;
   int chunk;
   int abi = xtensa_abi_choice ();
+  bool fdpic = fdpic_desc_addr != (bfd_vma) -1;
 
   chunk = reloc_index / PLT_ENTRIES_PER_CHUNK;
   splt = elf_xtensa_get_plt_section (info, chunk);
@@ -3043,6 +3134,31 @@ elf_xtensa_create_plt_entry (struct bfd_link_info *info,
 
   lit_offset = 8 + (reloc_index % PLT_ENTRIES_PER_CHUNK) * 4;
   code_offset = (reloc_index % PLT_ENTRIES_PER_CHUNK) * PLT_ENTRY_SIZE;
+
+  if (fdpic)
+    {
+      struct elf_xtensa_link_hash_table *htab
+	= elf_xtensa_hash_table (info);
+
+      /* The literal holds the descriptor's offset from the GOT base;
+	 it is GOT-relative, so it needs no fixup of its own.  */
+      bfd_put_32 (output_bfd,
+		  fdpic_desc_addr
+		  - (htab->elf.sgot->output_section->vma
+		     + htab->elf.sgot->output_offset),
+		  sgotplt->contents + lit_offset);
+
+      memcpy (splt->contents + code_offset,
+	      (bfd_big_endian (output_bfd)
+	       ? elf_xtensa_be_fdpic_plt_entry
+	       : elf_xtensa_le_fdpic_plt_entry),
+	      PLT_ENTRY_SIZE);
+      bfd_put_16 (output_bfd, l32r_offset (got_base + lit_offset,
+					   plt_base + code_offset + 1),
+		  splt->contents + code_offset + 1);
+
+      return plt_base + code_offset;
+    }
 
   /* Fill in the literal entry.  This is the offset of the dynamic
      relocation entry.  */
@@ -3562,6 +3678,76 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 				     + rel->r_offset));
 	  /* Fall through.  */
 	case R_XTENSA_PLT:
+	  /* FDPIC PLT references resolve through a GOT slot holding the
+	     callee's descriptor address, exactly like GOTFUNCDESC: the
+	     site carries the GOT-relative slot offset, the slot is
+	     pre-filled for local symbols (fixup table or RELATIVE) and
+	     resolved by a JMP_SLOT record for dynamic ones, and the
+	     descriptor words are resolved as usual.  */
+	  if (r_type == R_XTENSA_PLT && htab->sgotfuncdesc != NULL)
+	    {
+	      bfd_vma *pslot = h
+		? &elf_xtensa_hash_entry (h)->gotfamily_offset
+		: &elf_xtensa_local_gotfamily_offsets (input_bfd) [r_symndx];
+	      bfd_vma slot = *pslot & ~1;
+	      bfd_vma slot_addr = (htab->elf.sgot->output_section->vma
+				  + htab->elf.sgot->output_offset + slot);
+	      bfd_vma desc_addr;
+	      bool is_dynamic = dynamic_symbol
+		&& (h->root.type == bfd_link_hash_undefined || h->def_dynamic);
+
+	      if (is_dynamic)
+		{
+		  asection *srel = htab->elf.srelplt;
+
+		  desc_addr = elf_xtensa_fill_funcdesc_slot_dynamic
+		    (output_bfd, info, htab, input_bfd, h, r_symndx);
+		  /* The descriptor words come from the loader (the
+		     VALUE record is emitted by the fill on first use).  */
+
+		  /* The slot is filled by the loader at JMP_SLOT time; the
+		     record makes the reference resolvable.  */
+		  BFD_ASSERT (srel != NULL);
+		  elf_xtensa_add_dynreloc (output_bfd, srel, slot_addr,
+					  R_XTENSA_JMP_SLOT, 0, h->dynindx);
+		  bfd_put_32 (output_bfd, 0, htab->elf.sgot->contents + slot);
+		  *pslot |= 1;
+		  unresolved_reloc = false;
+
+		  /* Still emit the PLT entry for lazy binding; the
+		     literal is GOT-relative so it stays correct.  */
+		  elf_xtensa_create_plt_entry (info, output_bfd,
+					      htab->elf.srelplt->reloc_count - 1,
+					      desc_addr);
+		}
+	      else
+		{
+		  desc_addr = elf_xtensa_fill_funcdesc_slot
+		    (output_bfd, info, htab, input_bfd, h, r_symndx,
+		     relocation + rel->r_addend);
+
+		  if (!(*pslot & 1))
+		    {
+		      bfd_put_32 (output_bfd, desc_addr,
+				  htab->elf.sgot->contents + slot);
+		      *pslot |= 1;
+
+		      if (htab->srofixup != NULL)
+			elf_xtensa_add_rofixup (output_bfd, htab->srofixup,
+						slot_addr);
+		      else if (bfd_link_pic (info))
+			elf_xtensa_add_dynreloc (output_bfd, htab->elf.srelgot,
+						slot_addr,
+						R_XTENSA_RELATIVE, 0, 0);
+		    }
+		}
+
+	      /* The site value is the slot offset from the GOT base.  */
+	      relocation = slot;
+	      rel->r_addend = 0;
+	      break;
+	    }
+
 	  if (elf_hash_table (info)->dynamic_sections_created
 	      && (input_section->flags & SEC_ALLOC) != 0
 	      && (dynamic_symbol || bfd_link_pic (info)))
@@ -3621,8 +3807,9 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 			     contents of the literal entry to the address of
 			     the PLT entry.  */
 			  relocation =
-			    elf_xtensa_create_plt_entry (info, info->output_bfd,
-							 srel->reloc_count);
+			    elf_xtensa_create_plt_entry (info, output_bfd,
+							 srel->reloc_count,
+							 (bfd_vma) -1);
 			}
 		      unresolved_reloc = false;
 		    }
@@ -3825,16 +4012,10 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 		    continue;
 		  }
 
-		/* The descriptor words are resolved by the loader.  */
-		{
-		  bfd_vma desc_addr
-		    = elf_xtensa_fill_funcdesc_slot_dynamic
-		    (output_bfd, info, htab, input_bfd, h, r_symndx);
-
-		  elf_xtensa_add_dynreloc (output_bfd, srel, desc_addr,
-					  R_XTENSA_FUNCDESC_VALUE, 0,
-					  h->dynindx);
-		}
+		/* The descriptor words are resolved by the loader; the
+		   slot fill emits the VALUE record on first use.  */
+		elf_xtensa_fill_funcdesc_slot_dynamic
+		  (output_bfd, info, htab, input_bfd, h, r_symndx);
 		elf_xtensa_add_dynreloc (output_bfd, srel,
 					(input_section->output_section->vma
 					 + input_section->output_offset
