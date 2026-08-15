@@ -6076,6 +6076,15 @@ enum bfd_reloc_code_real
      relocation.  */
   BFD_RELOC_XTENSA_PLT,
 
+  /* Xtensa FDPIC relocations.  FUNCDESC resolves to the address of an
+     8-byte function descriptor holding the function entry point and the
+     module GOT value; FUNCDESC_VALUE inlines the descriptor contents at
+     the relocation site; SYM32 is a plain 32-bit symbol reference in an
+     FDPIC object.  */
+  BFD_RELOC_XTENSA_FUNCDESC,
+  BFD_RELOC_XTENSA_FUNCDESC_VALUE,
+  BFD_RELOC_XTENSA_SYM32,
+
   /* Xtensa relocations for backward compatibility.  These have been
      replaced by BFD_RELOC_XTENSA_PDIFF and BFD_RELOC_XTENSA_NDIFF.
      Xtensa relocations to mark the difference of two local symbols.

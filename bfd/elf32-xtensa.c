@@ -449,6 +449,18 @@ elf_xtensa_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
       TRACE ("BFD_RELOC_XTENSA_PLT");
       return &elf_howto_table[(unsigned) R_XTENSA_PLT ];
 
+    case BFD_RELOC_XTENSA_FUNCDESC:
+      TRACE ("BFD_RELOC_XTENSA_FUNCDESC");
+      return &elf_howto_table[(unsigned) R_XTENSA_FUNCDESC ];
+
+    case BFD_RELOC_XTENSA_FUNCDESC_VALUE:
+      TRACE ("BFD_RELOC_XTENSA_FUNCDESC_VALUE");
+      return &elf_howto_table[(unsigned) R_XTENSA_FUNCDESC_VALUE ];
+
+    case BFD_RELOC_XTENSA_SYM32:
+      TRACE ("BFD_RELOC_XTENSA_SYM32");
+      return &elf_howto_table[(unsigned) R_XTENSA_SYM32 ];
+
     case BFD_RELOC_XTENSA_OP0:
       TRACE ("BFD_RELOC_XTENSA_OP0");
       return &elf_howto_table[(unsigned) R_XTENSA_OP0 ];
@@ -3691,6 +3703,18 @@ elf_xtensa_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
   /* Don't even pretend to support mixed-format linking.  */
   if (bfd_get_flavour (ibfd) != bfd_target_elf_flavour)
     return false;
+
+  /* Propagate the FDPIC OSABI to the output and reject mixing FDPIC
+     and non-FDPIC objects.  */
+  if (elf_elfheader (ibfd)->e_ident[EI_OSABI] == ELFOSABI_XTENSA_FDPIC)
+    elf_elfheader (obfd)->e_ident[EI_OSABI] = ELFOSABI_XTENSA_FDPIC;
+  else if (elf_elfheader (obfd)->e_ident[EI_OSABI] == ELFOSABI_XTENSA_FDPIC)
+    {
+      _bfd_error_handler
+	(_("%pB: cannot link non-FDPIC object with FDPIC executable"),
+	 ibfd);
+      return false;
+    }
 
   out_flag = elf_elfheader (obfd)->e_flags;
   in_flag = elf_elfheader (ibfd)->e_flags;

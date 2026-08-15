@@ -5888,6 +5888,18 @@ ENUMDOC
   require PLT entries.  Otherwise, this is just a generic 32-bit
   relocation.
 ENUM
+  BFD_RELOC_XTENSA_FUNCDESC
+ENUMX
+  BFD_RELOC_XTENSA_FUNCDESC_VALUE
+ENUMX
+  BFD_RELOC_XTENSA_SYM32
+ENUMDOC
+  Xtensa FDPIC relocations.  FUNCDESC resolves to the address of an
+  8-byte function descriptor holding the function entry point and the
+  module GOT value; FUNCDESC_VALUE inlines the descriptor contents at
+  the relocation site; SYM32 is a plain 32-bit symbol reference in an
+  FDPIC object.
+ENUM
   BFD_RELOC_XTENSA_DIFF8
 ENUMX
   BFD_RELOC_XTENSA_DIFF16

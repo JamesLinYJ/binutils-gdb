@@ -351,6 +351,9 @@ op_placement_info_table op_placement_table;
 #define O_tlscall	O_md7	/* TLS_CALL relocation */
 #define O_tpoff		O_md8	/* TPOFF relocation */
 #define O_dtpoff	O_md9	/* DTPOFF relocation */
+#define O_funcdesc	O_md10	/* FDPIC function descriptor address */
+#define O_funcdesc_value O_md11	/* FDPIC function descriptor value */
+#define O_sym32		O_md12	/* FDPIC 32-bit symbol reference */
 
 struct suffix_reloc_map
 {
@@ -373,6 +376,10 @@ static struct suffix_reloc_map suffix_relocs[] =
   SUFFIX_MAP ("tlscall", BFD_RELOC_XTENSA_TLS_CALL,	O_tlscall),
   SUFFIX_MAP ("tpoff",	BFD_RELOC_XTENSA_TLS_TPOFF,	O_tpoff),
   SUFFIX_MAP ("dtpoff",	BFD_RELOC_XTENSA_TLS_DTPOFF,	O_dtpoff),
+  SUFFIX_MAP ("funcdesc", BFD_RELOC_XTENSA_FUNCDESC,	O_funcdesc),
+  SUFFIX_MAP ("funcdesc_value", BFD_RELOC_XTENSA_FUNCDESC_VALUE,
+	      O_funcdesc_value),
+  SUFFIX_MAP ("sym32",	BFD_RELOC_XTENSA_SYM32,		O_sym32),
 };
 
 
@@ -1711,6 +1718,21 @@ xtensa_elf_cons (int nbytes)
 		       && reloc <= BFD_RELOC_XTENSA_SLOT14_ALT))
 	    as_bad (_("opcode-specific %s relocation used outside "
 		      "an instruction"), reloc_howto->name);
+	  else if ((reloc == BFD_RELOC_XTENSA_FUNCDESC
+		    || reloc == BFD_RELOC_XTENSA_FUNCDESC_VALUE
+		    || reloc == BFD_RELOC_XTENSA_SYM32)
+		   && !fdpic)
+	    as_bad (_("%s relocation used without --fdpic"),
+		    reloc_howto->name);
+	  else if (reloc == BFD_RELOC_XTENSA_FUNCDESC_VALUE)
+	    {
+	      /* A function descriptor value spans a full 8-byte slot,
+		 whatever the directive width.  */
+	      char *p = frag_more (8);
+	      xtensa_set_frag_assembly_state (frag_now);
+	      fix_new_exp (frag_now, p - frag_now->fr_literal,
+			   8, &exp, reloc_howto->pc_relative, reloc);
+	    }
 	  else if (nbytes != (int) bfd_get_reloc_size (reloc_howto))
 	    as_bad (ngettext ("%s relocations do not fit in %d byte",
 			      "%s relocations do not fit in %d bytes",
@@ -1769,7 +1791,7 @@ xtensa_elf_suffix (char **str_p, expressionS *exp_p)
 
   for (ch = *str, str2 = ident;
        (str2 < ident + sizeof (ident) - 1
-	&& (ISALNUM (ch) || ch == '@'));
+	&& (ISALNUM (ch) || ch == '@' || ch == '_'));
        ch = *++str)
     {
       *str2++ = (ISLOWER (ch)) ? ch : TOLOWER (ch);
@@ -6139,6 +6161,9 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg)
     case BFD_RELOC_XTENSA_SLOT12_ALT:
     case BFD_RELOC_XTENSA_SLOT13_ALT:
     case BFD_RELOC_XTENSA_SLOT14_ALT:
+    case BFD_RELOC_XTENSA_FUNCDESC:
+    case BFD_RELOC_XTENSA_FUNCDESC_VALUE:
+    case BFD_RELOC_XTENSA_SYM32:
       /* These all need to be resolved at link-time.  Do nothing now.  */
       break;
 
