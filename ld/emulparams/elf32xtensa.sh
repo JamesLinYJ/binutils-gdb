@@ -19,6 +19,11 @@ PLT="/* .plt* sections are embedded in .text */"
 GOT=".got          ${RELOCATING-0} : { *(.got) }"
 OTHER_READONLY_SECTIONS="
   .got.loc      ${RELOCATING-0} : { *(.got.loc) }
+  .rofixup      ${RELOCATING-0} : {
+    ${RELOCATING+__ROFIXUP_LIST__ = .;}
+    *(.rofixup)
+    ${RELOCATING+__ROFIXUP_END__ = .;}
+  }
   .xt_except_table ${RELOCATING-0} : ONLY_IF_RO { KEEP (*(.xt_except_table${RELOCATING+ .xt_except_table.* .gnu.linkonce.e.*})) }
 "
 OTHER_RELRO_SECTIONS="
