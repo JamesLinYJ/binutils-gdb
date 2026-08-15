@@ -358,6 +358,7 @@ op_placement_info_table op_placement_table;
 #define O_funcdesc	O_md14	/* FDPIC function descriptor address */
 #define O_funcdesc_value O_md15	/* FDPIC function descriptor value */
 #define O_sym32		O_md16	/* FDPIC 32-bit symbol reference */
+#define O_gottlsdesc	O_md17	/* FDPIC GOT-relative TLS descriptor */
 
 struct suffix_reloc_map
 {
@@ -391,6 +392,8 @@ static struct suffix_reloc_map suffix_relocs[] =
   SUFFIX_MAP ("funcdesc_value", BFD_RELOC_XTENSA_FUNCDESC_VALUE,
 	      O_funcdesc_value),
   SUFFIX_MAP ("sym32",	BFD_RELOC_XTENSA_SYM32,		O_sym32),
+  SUFFIX_MAP ("gottlsdesc", BFD_RELOC_XTENSA_GOTTLSDESC,
+	      O_gottlsdesc),
 };
 
 
@@ -1735,7 +1738,8 @@ xtensa_elf_cons (int nbytes)
 		    || reloc == BFD_RELOC_XTENSA_GOTOFFFUNCDESC
 		    || reloc == BFD_RELOC_XTENSA_FUNCDESC
 		    || reloc == BFD_RELOC_XTENSA_FUNCDESC_VALUE
-		    || reloc == BFD_RELOC_XTENSA_SYM32)
+		    || reloc == BFD_RELOC_XTENSA_SYM32
+		    || reloc == BFD_RELOC_XTENSA_GOTTLSDESC)
 		   && !fdpic)
 	    as_bad (_("%s relocation used without --fdpic"),
 		    reloc_howto->name);
@@ -3382,6 +3386,7 @@ xg_valid_literal_expression (const expressionS *exp)
     case O_gotofffuncdesc:
     case O_funcdesc:
     case O_sym32:
+    case O_gottlsdesc:
       return true;
     default:
       return false;
@@ -4322,6 +4327,7 @@ xg_assemble_literal (/* const */ TInsn *insn)
     case O_gotofffuncdesc:
     case O_funcdesc:
     case O_sym32:
+    case O_gottlsdesc:
       p = frag_more (litsize);
       xtensa_set_frag_assembly_state (frag_now);
       reloc = map_operator_to_reloc (emit_val->X_op, true);
@@ -6051,6 +6057,7 @@ xtensa_fix_adjustable (fixS *fixP)
     case BFD_RELOC_XTENSA_FUNCDESC:
     case BFD_RELOC_XTENSA_FUNCDESC_VALUE:
     case BFD_RELOC_XTENSA_SYM32:
+    case BFD_RELOC_XTENSA_GOTTLSDESC:
       return false;
 
     default:
@@ -6151,6 +6158,7 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg)
     case BFD_RELOC_XTENSA_TLSDESC_ARG:
     case BFD_RELOC_XTENSA_TLS_TPOFF:
     case BFD_RELOC_XTENSA_TLS_DTPOFF:
+    case BFD_RELOC_XTENSA_GOTTLSDESC:
       S_SET_THREAD_LOCAL (fixP->fx_addsy);
       md_number_to_chars (fixpos, 0, fixP->fx_size);
       fixP->fx_no_overflow = 0; /* Use the standard overflow check.  */

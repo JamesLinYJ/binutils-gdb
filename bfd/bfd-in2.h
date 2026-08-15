@@ -6092,6 +6092,8 @@ enum bfd_reloc_code_real
   BFD_RELOC_XTENSA_FUNCDESC,
   BFD_RELOC_XTENSA_FUNCDESC_VALUE,
   BFD_RELOC_XTENSA_SYM32,
+  BFD_RELOC_XTENSA_GOTTLSDESC,
+  BFD_RELOC_XTENSA_TLSDESC,
 
   /* Xtensa relocations for backward compatibility.  These have been
      replaced by BFD_RELOC_XTENSA_PDIFF and BFD_RELOC_XTENSA_NDIFF.

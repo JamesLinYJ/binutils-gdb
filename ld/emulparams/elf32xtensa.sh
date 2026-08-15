@@ -16,7 +16,7 @@ GENERATE_COMBRELOC_SCRIPT=yes
 NO_SMALL_DATA=yes
 TEXT_PLT=yes
 PLT="/* .plt* sections are embedded in .text */"
-GOT=".got          ${RELOCATING-0} : { *(.got) }"
+GOT=".got          ${RELOCATING-0} : { *(.got) *(.got.funcdesc) }"
 OTHER_READONLY_SECTIONS="
   .got.loc      ${RELOCATING-0} : { *(.got.loc) }
   .rofixup      ${RELOCATING-0} : {

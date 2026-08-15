@@ -107,6 +107,9 @@ START_RELOC_NUMBERS (elf_xtensa_reloc_type)
      RELOC_NUMBER (R_XTENSA_GOTOFFFUNCDESC, 67)
      RELOC_NUMBER (R_XTENSA_FUNCDESC, 68)
      RELOC_NUMBER (R_XTENSA_FUNCDESC_VALUE, 69)
+     /* Link-time offset of an 8-byte TLS descriptor in the module GOT.
+	The dynamic loader only sees R_XTENSA_TLSDESC below.  */
+     RELOC_NUMBER (R_XTENSA_GOTTLSDESC, 70)
      RELOC_NUMBER (R_XTENSA_TLSDESC, 72)
 END_RELOC_NUMBERS (R_XTENSA_max)
 

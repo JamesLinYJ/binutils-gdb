@@ -5901,6 +5901,10 @@ ENUMX
   BFD_RELOC_XTENSA_FUNCDESC_VALUE
 ENUMX
   BFD_RELOC_XTENSA_SYM32
+ENUMX
+  BFD_RELOC_XTENSA_GOTTLSDESC
+ENUMX
+  BFD_RELOC_XTENSA_TLSDESC
 ENUMDOC
   Xtensa FDPIC relocations.  GOT resolves to the offset of a GOT slot
   holding the symbol's address; GOTOFF to the symbol's offset from the
@@ -5910,7 +5914,9 @@ ENUMDOC
   8-byte function descriptor holding the function entry point and the
   module GOT value; FUNCDESC_VALUE inlines the descriptor contents at
   the relocation site; SYM32 is a plain 32-bit symbol reference in an
-  FDPIC object.
+  FDPIC object.  GOTTLSDESC resolves to the offset of a writable TLS
+  descriptor in the module GOT; TLSDESC is the corresponding dynamic
+  loader relocation for that descriptor.
 ENUM
   BFD_RELOC_XTENSA_DIFF8
 ENUMX
