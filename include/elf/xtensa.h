@@ -101,6 +101,10 @@ START_RELOC_NUMBERS (elf_xtensa_reloc_type)
      RELOC_NUMBER (R_XTENSA_TLSDESC, 72)
 END_RELOC_NUMBERS (R_XTENSA_max)
 
+/* OSABI value identifying FDPIC objects, per the Xtensa FDPIC ABI
+   (matching the Linux kernel and uClibc-ng definitions).  */
+#define ELFOSABI_XTENSA_FDPIC	65
+
 /* Processor-specific flags for the ELF header e_flags field.  */
 
 /* Four-bit Xtensa machine type field.  */

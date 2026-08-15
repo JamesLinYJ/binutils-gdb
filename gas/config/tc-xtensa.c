@@ -614,6 +614,9 @@ static int config_max_slots = 0;
 /* Command-line Options.  */
 
 bool use_literal_section = true;
+/* Whether --fdpic was given: mark the object with the Xtensa FDPIC
+   OSABI value.  */
+static bool fdpic = false;
 enum flix_level produce_flix = FLIX_ALL;
 static bool align_targets = true;
 static bool warn_unaligned_branch_targets = false;
@@ -733,6 +736,9 @@ enum
 
   option_abi_windowed,
   option_abi_call0,
+
+  option_fdpic,
+  option_no_fdpic,
 };
 
 const char md_shortopts[] = "";
@@ -816,6 +822,9 @@ const struct option md_longopts[] =
 
   { "abi-windowed", no_argument, NULL, option_abi_windowed },
   { "abi-call0", no_argument, NULL, option_abi_call0 },
+
+  { "fdpic", no_argument, NULL, option_fdpic },
+  { "no-fdpic", no_argument, NULL, option_no_fdpic },
 
   { NULL, no_argument, NULL, 0 }
 };
@@ -1050,6 +1059,14 @@ md_parse_option (int c, const char *arg)
 
     case option_abi_call0:
       elf32xtensa_abi = XTHAL_ABI_CALL0;
+      return 1;
+
+    case option_fdpic:
+      fdpic = true;
+      return 1;
+
+    case option_no_fdpic:
+      fdpic = false;
       return 1;
 
     default:
@@ -7373,6 +7390,11 @@ xtensa_md_finish (void)
 {
   directive_balance ();
   xtensa_flush_pending_output ();
+
+  /* Mark FDPIC objects with the Xtensa FDPIC OSABI value; the kernel
+     loader distinguishes FDPIC binaries by it.  */
+  if (fdpic)
+    elf_elfheader (stdoutput)->e_ident[EI_OSABI] = ELFOSABI_XTENSA_FDPIC;
 
   past_xtensa_md_finish = true;
 
