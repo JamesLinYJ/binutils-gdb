@@ -913,6 +913,13 @@ elf_xtensa_link_hash_newfunc (struct bfd_hash_entry *entry,
     {
       struct elf_xtensa_link_hash_entry *eh = elf_xtensa_hash_entry (entry);
       eh->tlsfunc_refcount = 0;
+      eh->funcdesc_refcount = 0;
+      eh->funcdesc_offset = 0;
+      eh->rofixup_refcount = 0;
+      eh->funcdesc_value_refcount = 0;
+      eh->funcdesc_reloc_count = 0;
+      eh->gotfamily_refcount = 0;
+      eh->gotfamily_offset = 0;
       eh->tlsdesc_refcount = 0;
       eh->tlsdesc_offset = 0;
       eh->tls_type = GOT_UNKNOWN;
@@ -975,6 +982,22 @@ elf_xtensa_copy_indirect_symbol (struct bfd_link_info *info,
 
       edir->tlsdesc_refcount += eind->tlsdesc_refcount;
       eind->tlsdesc_refcount = 0;
+
+      /* Redirected and warning symbols share the direct symbol's FDPIC
+	 descriptor and GOT slots.  Move every pre-sizing count to the direct
+	 entry before allocate_dynrelocs and size_funcdesc_section walk the
+	 hash table; otherwise the final relocation pass resolves through DIR
+	 and emits records for which no space was reserved.  */
+      edir->funcdesc_refcount += eind->funcdesc_refcount;
+      eind->funcdesc_refcount = 0;
+      edir->rofixup_refcount += eind->rofixup_refcount;
+      eind->rofixup_refcount = 0;
+      edir->funcdesc_value_refcount += eind->funcdesc_value_refcount;
+      eind->funcdesc_value_refcount = 0;
+      edir->funcdesc_reloc_count += eind->funcdesc_reloc_count;
+      eind->funcdesc_reloc_count = 0;
+      edir->gotfamily_refcount += eind->gotfamily_refcount;
+      eind->gotfamily_refcount = 0;
 
       if (dir->got.refcount <= 0)
 	{
@@ -1286,18 +1309,17 @@ elf_xtensa_create_fdpic_sections (bfd *abfd, struct bfd_link_info *info)
       htab->elf.sgot->size = XTENSA_FDPIC_GOT_HEADER_SIZE;
     }
 
-  /* Position-dependent executables get the read-only fixup table;
-     position-independent ones record their absolute references in
-     .rel.dyn instead, which both libcs know how to walk.  */
-  if (!bfd_link_pic (info))
-    {
-      htab->srofixup =
-	bfd_make_section_anyway_with_flags (htab->elf.dynobj, ".rofixup",
-					    fd_flags);
-      if (htab->srofixup == NULL
-	  || !bfd_set_section_alignment (htab->srofixup, 2))
-	return false;
-    }
+  /* Every FDPIC startup needs the final GOT-address word in .rofixup.
+     A position-dependent executable also records each absolute word that
+     startup must relocate.  A PIE or DSO uses dynamic relocations for those
+     words, but still needs the trailing GOT address to bootstrap A11 before
+     the dynamic loader can execute normal C code.  */
+  htab->srofixup =
+    bfd_make_section_anyway_with_flags (htab->elf.dynobj, ".rofixup",
+					fd_flags);
+  if (htab->srofixup == NULL
+      || !bfd_set_section_alignment (htab->srofixup, 2))
+    return false;
 
   return true;
 }
@@ -1314,6 +1336,17 @@ elf_xtensa_fdpic_runtime_fixup_section_p (asection *sec)
   return ((sec->flags & SEC_ALLOC) != 0
 	  && !xtensa_is_property_section (sec)
 	  && !xtensa_is_littable_section (sec));
+}
+
+/* A PIE or DSO must leave its absolute data words to the dynamic loader.
+   The .rofixup section is still present there, but only as the bootstrap
+   carrier for the module GOT address.  */
+
+static bool
+elf_xtensa_fdpic_use_rofixup_p (struct bfd_link_info *info,
+				struct elf_xtensa_link_hash_table *htab)
+{
+  return htab->srofixup != NULL && !bfd_link_pic (info);
 }
 
 /* Count one absolute-address reference for symbol R_SYMNDX of ABFD.
@@ -1817,18 +1850,6 @@ elf_xtensa_check_relocs (bfd *abfd,
 		return false;
 	      elf_xtensa_local_tlsfunc_refcounts (abfd)
 		= (bfd_signed_vma *) mem;
-
-	      mem = bfd_zalloc (abfd, size * sizeof (bfd_signed_vma));
-	      if (mem == NULL)
-		return false;
-	      elf_xtensa_local_funcdesc_refcounts (abfd)
-		= (bfd_signed_vma *) mem;
-
-	      mem = bfd_zalloc (abfd, size * sizeof (bfd_vma));
-	      if (mem == NULL)
-		return false;
-	      elf_xtensa_local_funcdesc_offsets (abfd)
-		= (bfd_vma *) mem;
 	    }
 
 	  /* This is a global offset table entry for a local symbol.  */
@@ -2279,7 +2300,7 @@ elf_xtensa_fill_funcdesc_slot (bfd *output_bfd, struct bfd_link_info *info,
 		  htab->sgotfuncdesc->contents + desc_off + 4);
       *pdesc |= 1;
 
-      if (htab->srofixup != NULL)
+      if (elf_xtensa_fdpic_use_rofixup_p (info, htab))
 	{
 	  elf_xtensa_add_rofixup (output_bfd, htab->srofixup, desc_addr);
 	  elf_xtensa_add_rofixup (output_bfd, htab->srofixup, desc_addr + 4);
@@ -2467,11 +2488,6 @@ elf_xtensa_size_funcdesc_section (bfd *output_bfd,
 	}
     }
 
-  if (cd.count == 0
-      && cd.gotfamily_count == 0
-      && cd.tlsdesc_count == 0)
-    return true;
-
   /* The section itself is created in check_relocs, before the linker
      script placement pass.  Only its final size and contents buffer are
      set here.  */
@@ -2510,15 +2526,17 @@ elf_xtensa_size_funcdesc_section (bfd *output_bfd,
 
 	}
 
-      if (htab->srofixup != NULL)
-	{
-	  htab->srofixup->size
-	    = (rofixup_entries + 2 * cd.count + 1) * 4;
-	  htab->srofixup->contents
-	    = bfd_zalloc (output_bfd, htab->srofixup->size);
-	  if (htab->srofixup->contents == NULL)
-	    return false;
-	}
+      if (bfd_link_pic (info))
+	rofixup_entries = 0;
+
+      htab->srofixup->size
+	= (rofixup_entries
+	   + (bfd_link_pic (info) ? 0 : 2 * cd.count)
+	   + 1) * 4;
+      htab->srofixup->contents
+	= bfd_zalloc (output_bfd, htab->srofixup->size);
+      if (htab->srofixup->contents == NULL)
+	return false;
 
     }
 
@@ -2530,6 +2548,7 @@ elf_xtensa_late_size_sections (struct bfd_link_info *info)
 {
   struct elf_xtensa_link_hash_table *htab;
   bfd *dynobj, *abfd;
+  bfd *output_bfd = info->output_bfd;
   asection *s, *srelplt, *splt, *sgotplt, *srelgot, *spltlittbl, *sgotloc;
   bool relplt, relgot;
   int plt_entries, plt_chunks, chunk;
@@ -2540,6 +2559,21 @@ elf_xtensa_late_size_sections (struct bfd_link_info *info)
   htab = elf_xtensa_hash_table (info);
   if (htab == NULL)
     return false;
+
+  /* uClibc's Xtensa FDPIC static startup relocates the .rofixup table,
+     while a static PIE would require a separate self-relocator for its
+     dynamic relocation table.  No such ABI is defined.  A supported FDPIC
+     PIE is therefore interpreter-backed and has an .interp section; reject
+     the superficially linkable but unbootable no-interpreter case.  */
+  if (htab->srofixup != NULL
+      && bfd_link_pie (info)
+      && bfd_get_section_by_name (output_bfd, ".interp") == NULL)
+    {
+      _bfd_error_handler
+	(_("%pB: static PIE is not supported for Xtensa FDPIC"), output_bfd);
+      bfd_set_error (bfd_error_bad_value);
+      return false;
+    }
 
   if (!elf_xtensa_size_funcdesc_section (output_bfd, info, htab))
     return false;
@@ -3813,7 +3847,7 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 	    _("FDPIC runtime relocation targets a read-only section");
 	  (*info->callbacks->reloc_dangerous)
 	    (info, error_message, input_bfd, input_section, rel->r_offset);
-	  continue;
+	  return false;
 	}
 
       tls_type = GOT_UNKNOWN;
@@ -3890,7 +3924,7 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 	     are static metadata, not runtime data: their section
 	     references are not walked by the startup relocation pass
 	     and must not be recorded.  */
-	  if (htab->srofixup != NULL
+	  if (elf_xtensa_fdpic_use_rofixup_p (info, htab)
 	      && !dynamic_symbol && !unresolved_reloc
 	      && elf_xtensa_fdpic_runtime_fixup_section_p (input_section))
 	    elf_xtensa_add_rofixup (output_bfd, htab->srofixup,
@@ -3953,7 +3987,7 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 				  htab->elf.sgot->contents + slot);
 		      *pslot |= 1;
 
-		      if (htab->srofixup != NULL)
+		      if (elf_xtensa_fdpic_use_rofixup_p (info, htab))
 			elf_xtensa_add_rofixup (output_bfd, htab->srofixup,
 						slot_addr);
 		      else if (bfd_link_pic (info))
@@ -4272,7 +4306,7 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 	       R_XTENSA_RELATIVE entry against the pre-filled slot --
 	       the convention all three supported libc startup paths
 	       implement.  */
-	    if (htab->srofixup != NULL)
+	    if (elf_xtensa_fdpic_use_rofixup_p (info, htab))
 	      elf_xtensa_add_rofixup (output_bfd, htab->srofixup,
 				      (input_section->output_section->vma
 				       + input_section->output_offset
@@ -4326,7 +4360,7 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 		/* The slot content is an absolute address: record it
 		   in the fixup table for position-dependent links or
 		   as an R_XTENSA_RELATIVE entry otherwise.  */
-		if (htab->srofixup != NULL)
+		if (elf_xtensa_fdpic_use_rofixup_p (info, htab))
 		  elf_xtensa_add_rofixup (output_bfd, htab->srofixup,
 					  slot_addr);
 		else if (bfd_link_pic (info))
@@ -4422,7 +4456,7 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 		      (htab->elf.sgot->output_section->vma
 		       + htab->elf.sgot->output_offset),
 		      contents + rel->r_offset + 4);
-	  if (htab->srofixup != NULL)
+	  if (elf_xtensa_fdpic_use_rofixup_p (info, htab))
 	    {
 	      bfd_vma site = (input_section->output_section->vma
 			     + input_section->output_offset

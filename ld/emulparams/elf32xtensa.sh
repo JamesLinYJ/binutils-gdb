@@ -13,6 +13,7 @@ MACHINE=
 GENERATE_SHLIB_SCRIPT=yes
 GENERATE_PIE_SCRIPT=yes
 GENERATE_COMBRELOC_SCRIPT=yes
+SEPARATE_CODE=yes
 NO_SMALL_DATA=yes
 TEXT_PLT=yes
 PLT="/* .plt* sections are embedded in .text */"
