@@ -3789,8 +3789,12 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 		  (info, error_message, input_bfd, input_section, rel->r_offset);
 		continue;
 	      }
-	    if (unresolved_reloc)
+	    if (unresolved_reloc
+		&& !(dynamic_symbol && bfd_link_pic (info)))
 	      {
+		/* An unresolved symbol in a static link is fatal; in a
+		   dynamic link the loader resolves it through the
+		   FUNCDESC record emitted below.  */
 		error_message =
 		  _("FDPIC function descriptor for unresolved symbol");
 		(*info->callbacks->reloc_dangerous)
@@ -3799,9 +3803,12 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 	      }
 	    if (dynamic_symbol
 		&& h != NULL
-		&& h->root.type == bfd_link_hash_undefined)
+		&& (h->root.type == bfd_link_hash_undefined
+		    || h->def_dynamic))
 	      {
-		/* A symbol the dynamic linker resolves at run time: the
+		/* A symbol the dynamic linker resolves at run time (an
+		   undefined reference or a shared-library definition):
+		   the
 		   referencing site gets an R_XTENSA_FUNCDESC record and
 		   the descriptor an R_XTENSA_FUNCDESC_VALUE record,
 		   both consumed by the libc dynamic loaders.  */
@@ -3835,7 +3842,9 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 					R_XTENSA_FUNCDESC, rel->r_addend,
 					h->dynindx);
 		/* The site holds the descriptor address computed by the
-		   loader, so nothing is written now.  */
+		   loader, so nothing is written now; the record above
+		   makes the reference resolvable.  */
+		unresolved_reloc = false;
 		relocation = 0;
 		rel->r_addend = 0;
 		break;
@@ -3947,7 +3956,8 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 	  break;
 
 	case R_XTENSA_FUNCDESC_VALUE:
-	  if (unresolved_reloc)
+	  if (unresolved_reloc
+	      && !(dynamic_symbol && bfd_link_pic (info)))
 	    {
 	      error_message =
 		_("FDPIC function descriptor value for unresolved symbol");
@@ -3957,7 +3967,8 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 	    }
 	  if (dynamic_symbol
 	      && h != NULL
-	      && h->root.type == bfd_link_hash_undefined)
+	      && (h->root.type == bfd_link_hash_undefined
+		  || h->def_dynamic))
 	    {
 	      /* The loader fills both descriptor words from the symbol:
 		 one R_XTENSA_FUNCDESC_VALUE record covers the 8-byte
