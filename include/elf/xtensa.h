@@ -93,6 +93,12 @@ START_RELOC_NUMBERS (elf_xtensa_reloc_type)
      RELOC_NUMBER (R_XTENSA_NDIFF8, 60)
      RELOC_NUMBER (R_XTENSA_NDIFF16, 61)
      RELOC_NUMBER (R_XTENSA_NDIFF32, 62)
+     /* FDPIC relocations, per the Xtensa FDPIC ABI (matching the Linux
+	kernel and uClibc-ng definitions).  */
+     RELOC_NUMBER (R_XTENSA_SYM32, 63)
+     RELOC_NUMBER (R_XTENSA_FUNCDESC, 68)
+     RELOC_NUMBER (R_XTENSA_FUNCDESC_VALUE, 69)
+     RELOC_NUMBER (R_XTENSA_TLSDESC, 72)
 END_RELOC_NUMBERS (R_XTENSA_max)
 
 /* Processor-specific flags for the ELF header e_flags field.  */

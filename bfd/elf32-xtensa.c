@@ -346,6 +346,26 @@ static reloc_howto_type elf_howto_table[] =
 	 bfd_elf_xtensa_reloc, "R_XTENSA_NDIFF16", false, 0, 0xffff, false),
   HOWTO (R_XTENSA_NDIFF32, 0, 4, 32, false, 0, complain_overflow_bitfield,
 	 bfd_elf_xtensa_reloc, "R_XTENSA_NDIFF32", false, 0, 0xffffffff, false),
+
+  /* FDPIC relocations (Xtensa FDPIC ABI, matching the Linux kernel and
+     uClibc-ng definitions).  R_XTENSA_FUNCDESC_VALUE covers the full
+     8-byte function descriptor { entry_point, got_value }.  */
+  HOWTO (R_XTENSA_SYM32, 0, 4, 32, false, 0, complain_overflow_bitfield,
+	 bfd_elf_generic_reloc, "R_XTENSA_SYM32",
+	 false, 0, 0xffffffff, false),
+  EMPTY_HOWTO (64),
+  EMPTY_HOWTO (65),
+  EMPTY_HOWTO (66),
+  EMPTY_HOWTO (67),
+  HOWTO (R_XTENSA_FUNCDESC, 0, 4, 32, false, 0, complain_overflow_bitfield,
+	 bfd_elf_generic_reloc, "R_XTENSA_FUNCDESC",
+	 false, 0, 0xffffffff, false),
+  HOWTO (R_XTENSA_FUNCDESC_VALUE, 0, 4, 64, false, 0,
+	 complain_overflow_bitfield, bfd_elf_generic_reloc,
+	 "R_XTENSA_FUNCDESC_VALUE", false, 0, 0xffffffff, false),
+  EMPTY_HOWTO (70),
+  EMPTY_HOWTO (71),
+  EMPTY_HOWTO (72),
 };
 
 #if DEBUG_GEN_RELOC
