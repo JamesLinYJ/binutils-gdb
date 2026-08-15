@@ -7115,7 +7115,14 @@ emit_single_op (TInsn *orig_insn)
 	  || orig_insn->tok[1].X_op == O_tlsfunc
 	  || orig_insn->tok[1].X_op == O_tlsarg
 	  || orig_insn->tok[1].X_op == O_tpoff
-	  || orig_insn->tok[1].X_op == O_dtpoff)
+	  || orig_insn->tok[1].X_op == O_dtpoff
+	  || orig_insn->tok[1].X_op == O_got
+	  || orig_insn->tok[1].X_op == O_gotoff
+	  || orig_insn->tok[1].X_op == O_gotfuncdesc
+	  || orig_insn->tok[1].X_op == O_gotofffuncdesc
+	  || orig_insn->tok[1].X_op == O_funcdesc
+	  || orig_insn->tok[1].X_op == O_sym32
+	  || orig_insn->tok[1].X_op == O_gottlsdesc)
       && !orig_insn->is_specific_opcode && use_transform ())
     xg_assembly_relax (&istack, orig_insn, now_seg, frag_now, 0, 1, 0);
   else
