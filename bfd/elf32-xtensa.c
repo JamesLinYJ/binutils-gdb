@@ -1184,6 +1184,7 @@ elf_xtensa_check_relocs (bfd *abfd,
 	      flagword fd_flags = (SEC_HAS_CONTENTS | SEC_IN_MEMORY
 				  | SEC_LINKER_CREATED | SEC_READONLY
 				  | SEC_ALLOC | SEC_LOAD);
+	      flagword got_flags = fd_flags & ~SEC_READONLY;
 
 	      if (htab->elf.dynobj == NULL)
 		htab->elf.dynobj = abfd;
@@ -1198,13 +1199,14 @@ elf_xtensa_check_relocs (bfd *abfd,
 
 	      /* The descriptors' got_value word needs the module GOT base.
 		 For fully static links the Xtensa backend has no .got yet:
-		 provide the 4-byte anchor like the dynamic path does.  */
+		 provide the 4-byte anchor like the dynamic path does.
+		 Unlike .got.funcdesc, the GOT anchor must be writable.  */
 	      if (htab->elf.sgot == NULL)
 		{
 		  htab->elf.sgot =
 		    bfd_make_section_anyway_with_flags (htab->elf.dynobj,
 							".got",
-							fd_flags);
+							got_flags);
 		  if (htab->elf.sgot == NULL
 		      || !bfd_set_section_alignment (htab->elf.sgot, 2))
 		    return false;

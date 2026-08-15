@@ -294,6 +294,15 @@ elf_xtensa_after_open (void)
       asection *sec = f->the_bfd->sections;
       asection *next_sec;
 
+      if (f->the_bfd != NULL
+	  && bfd_get_flavour (f->the_bfd) == bfd_target_elf_flavour
+	  && elf_elfheader (f->the_bfd)->e_ident[EI_OSABI]
+	     == ELFOSABI_XTENSA_FDPIC)
+	/* FDPIC links need demand paging so that the generic segment
+		 mapper separates the RX and RW segments.  This runs before
+		 the output statement sets D_PAGED.  */
+	config.magic_demand_paged = true;
+
       /* Do not use bfd_map_over_sections here since we are removing
 	 sections as we iterate.  */
       while (sec != NULL)
@@ -535,6 +544,26 @@ elf_xtensa_before_allocation (void)
      them as needed for the entire output section.  Finally, if this
      is a relocatable link then we need to add alignment notes so
      that the literals can be separated later.  */
+}
+
+
+/* FDPIC links need the RX/RW segment separation even when the
+   relaxation pass reports no layout change (the Xtensa linker script
+   does not define program headers).  */
+
+static void
+elf_xtensa_after_allocation (void)
+{
+  int need_layout = bfd_elf_discard_info (link_info.output_bfd, &link_info);
+
+  if (elf_elfheader (link_info.output_bfd)->e_ident[EI_OSABI]
+      == ELFOSABI_XTENSA_FDPIC)
+    need_layout = 1;
+
+  if (need_layout < 0)
+    einfo (_("%X%P: .eh_frame/.stab edit: %E\n"));
+  else
+    ldelf_map_segments (need_layout);
 }
 
 
@@ -1971,3 +2000,4 @@ LDEMUL_BEFORE_PARSE=elf_xtensa_before_parse
 LDEMUL_AFTER_OPEN=elf_xtensa_after_open
 LDEMUL_CHOOSE_TARGET=elf_xtensa_choose_target
 LDEMUL_BEFORE_ALLOCATION=elf_xtensa_before_allocation
+LDEMUL_AFTER_ALLOCATION=elf_xtensa_after_allocation
