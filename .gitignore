@@ -75,3 +75,6 @@ stamp-*
 /gmp*
 /isl*
 /gettext*
+
+# Local build tree
+build-check/
