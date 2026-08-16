@@ -4263,10 +4263,14 @@ xtensa_create_literal_symbol (segT sec, fragS *frag)
 }
 
 
-/* Currently all literals that are generated here are 32-bit L32R targets.  */
+/* Currently all literals that are generated here are 32-bit L32R targets.
+   FORCE_PCREL requests a PC-relative literal; under FDPIC the assembler
+   uses it for longcall expansion targets so that the function address
+   stays link-time resolvable inside the module's RX PT_LOAD instead of
+   requiring a runtime relocation into read-only executable storage.  */
 
 static symbolS *
-xg_assemble_literal (/* const */ TInsn *insn)
+xg_assemble_literal (/* const */ TInsn *insn, bool force_pcrel)
 {
   emit_state state;
   symbolS *lit_sym = NULL;
@@ -4340,7 +4344,22 @@ xg_assemble_literal (/* const */ TInsn *insn)
       break;
 
     default:
-      emit_expr (emit_val, litsize);
+      if (force_pcrel && fdpic)
+	{
+	  /* A longcall expansion literal in executable storage holds a
+	     function address.  An absolute R_XTENSA_32 would become a
+	     runtime relocation whose target is read-only RX storage,
+	     which the FDPIC linker correctly rejects; a PC-relative
+	     literal is resolved at link time inside the module's single
+	     RX PT_LOAD (the FDPIC ABI requires one executable PT_LOAD
+	     per module).  */
+	  p = frag_more (litsize);
+	  xtensa_set_frag_assembly_state (frag_now);
+	  fix_new_exp (frag_now, p - frag_now->fr_literal, litsize,
+		       emit_val, true, BFD_RELOC_32_PCREL);
+	}
+      else
+	emit_expr (emit_val, litsize);
       break;
     }
 
@@ -6586,7 +6605,7 @@ finish_vinsn (vliw_insn *vinsn)
 	      if (insn->insn_type == ITYPE_LITERAL)
 		{
 		  gas_assert (lit_sym == NULL);
-		  lit_sym = xg_assemble_literal (insn);
+		  lit_sym = xg_assemble_literal (insn, false);
 		}
 	      else
 		{
@@ -7135,8 +7154,29 @@ emit_single_op (TInsn *orig_insn)
       switch (insn->insn_type)
 	{
 	case ITYPE_LITERAL:
-	  gas_assert (lit_sym == NULL);
-	  lit_sym = xg_assemble_literal (insn);
+	  {
+	    /* A call0 relaxed into L32R+CALLX carries its target address
+	       in a literal.  Under FDPIC that literal must stay PC-relative
+	       (link-time resolvable inside the RX PT_LOAD) rather than
+	       absolute, which would require a runtime relocation into
+	       read-only executable storage.  Detect the CALLX that follows
+	       the L32R to distinguish the call expansion from a plain MOVI
+	       relaxation.  */
+	    bool call_literal = false;
+	    int j;
+
+	    for (j = i + 1; j < istack.ninsn; j++)
+	      if (istack.insn[j].insn_type == ITYPE_INSN
+		  && xtensa_opcode_is_call (xtensa_default_isa,
+					    istack.insn[j].opcode) == 1
+		  && !is_direct_call_opcode (istack.insn[j].opcode))
+		{
+		  call_literal = true;
+		  break;
+		}
+	    gas_assert (lit_sym == NULL);
+	    lit_sym = xg_assemble_literal (insn, call_literal);
+	  }
 	  break;
 	case ITYPE_LABEL:
 	  {
@@ -10974,18 +11014,47 @@ convert_frag_immed (segT segP,
 	  switch (tinsn->insn_type)
 	    {
 	    case ITYPE_LITERAL:
-	      lit_frag = fragP->tc_frag_data.literal_frags[slot];
-	      /* Already checked.  */
-	      gas_assert (lit_frag != NULL);
-	      gas_assert (lit_sym != NULL);
-	      gas_assert (tinsn->ntok == 1);
-	      /* Add a fixup.  */
-	      target_seg = S_GET_SEGMENT (lit_sym);
-	      gas_assert (target_seg);
-	      reloc_type = map_operator_to_reloc (tinsn->tok[0].X_op, true);
-	      fix_new_exp_in_seg (target_seg, 0, lit_frag, 0, 4,
-				  &tinsn->tok[0], false, reloc_type);
-	      break;
+	      {
+		bool call_literal = false;
+		int j;
+
+		/* A call0 relaxed into L32R+CALLX carries the target
+		   address in this literal.  Under FDPIC it must stay
+		   PC-relative (link-time resolvable inside the module's
+		   RX PT_LOAD) rather than absolute, which would require
+		   a runtime relocation into read-only executable
+		   storage.  Detect the CALLX that follows the L32R to
+		   distinguish the call expansion from a plain MOVI
+		   relaxation.  */
+		for (j = i + 1; j < istack.ninsn; j++)
+		  if (istack.insn[j].insn_type == ITYPE_INSN
+		      && xtensa_opcode_is_call (xtensa_default_isa,
+						istack.insn[j].opcode) == 1
+		      && !is_direct_call_opcode (istack.insn[j].opcode))
+		    {
+		      call_literal = true;
+		      break;
+		    }
+		lit_frag = fragP->tc_frag_data.literal_frags[slot];
+		/* Already checked.  */
+		gas_assert (lit_frag != NULL);
+		gas_assert (lit_sym != NULL);
+		gas_assert (tinsn->ntok == 1);
+		/* Add a fixup.  */
+		target_seg = S_GET_SEGMENT (lit_sym);
+		gas_assert (target_seg);
+		reloc_type = map_operator_to_reloc (tinsn->tok[0].X_op, true);
+		if (call_literal && fdpic && tinsn->tok[0].X_op == O_symbol)
+		  {
+		    reloc_type = BFD_RELOC_32_PCREL;
+		    fix_new_exp_in_seg (target_seg, 0, lit_frag, 0, 4,
+					&tinsn->tok[0], true, reloc_type);
+		  }
+		else
+		  fix_new_exp_in_seg (target_seg, 0, lit_frag, 0, 4,
+				      &tinsn->tok[0], false, reloc_type);
+		break;
+	      }
 
 	    case ITYPE_LABEL:
 	      break;
