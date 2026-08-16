@@ -2602,6 +2602,13 @@ elf_xtensa_late_size_sections (struct bfd_link_info *info)
   bool relplt, relgot;
   int plt_entries, plt_chunks, chunk;
 
+  /* Relocatable links preserve input relocations and do not create the
+     final FDPIC GOT, function descriptor, or .rofixup sections.  Keep this
+     boundary in sync with elf_xtensa_check_relocs, which deliberately skips
+     final-link bookkeeping for the same case.  */
+  if (bfd_link_relocatable (info))
+    return true;
+
   plt_entries = 0;
   plt_chunks = 0;
 
