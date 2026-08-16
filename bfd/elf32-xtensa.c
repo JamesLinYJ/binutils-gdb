@@ -2180,7 +2180,12 @@ elf_xtensa_allocate_dynrelocs (struct elf_link_hash_entry *h, void *arg)
 	rela_count += dynamic ? 1 : 2;
       rela_count += eh->funcdesc_reloc_count;
       rela_count += eh->funcdesc_value_refcount * (dynamic ? 1 : 2);
-      if (eh->gotfamily_refcount > 0)
+      /* A dynamic undefined weak reference owns a zero-filled GOT slot.
+	 Relocating that slot would turn the required NULL value into a load
+	 address, so relocate_section deliberately emits no record for it.
+	 Keep the reservation count in sync with that weak-null rule.  */
+      if (eh->gotfamily_refcount > 0
+	  && h->root.type != bfd_link_hash_undefweak)
 	rela_count++;
       rela_count += eh->abs_reloc_refcount;
 
