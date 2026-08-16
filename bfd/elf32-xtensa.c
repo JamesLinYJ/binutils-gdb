@@ -2534,6 +2534,7 @@ elf_xtensa_size_funcdesc_section (bfd *output_bfd,
 	    = bfd_zalloc (output_bfd, htab->elf.sgot->size);
 	  if (htab->elf.sgot->contents == NULL)
 	    return false;
+	  htab->elf.sgot->alloced = 1;
 	}
     }
 
@@ -2549,6 +2550,7 @@ elf_xtensa_size_funcdesc_section (bfd *output_bfd,
 	= bfd_zalloc (output_bfd, htab->sgotfuncdesc->size);
       if (htab->sgotfuncdesc->contents == NULL)
 	return false;
+      htab->sgotfuncdesc->alloced = 1;
     }
 
   /* Size the .rofixup table for position-dependent links: one
@@ -2586,6 +2588,7 @@ elf_xtensa_size_funcdesc_section (bfd *output_bfd,
 	= bfd_zalloc (output_bfd, htab->srofixup->size);
       if (htab->srofixup->contents == NULL)
 	return false;
+      htab->srofixup->alloced = 1;
 
     }
 
@@ -3586,6 +3589,7 @@ elf_xtensa_relocate_section (struct bfd_link_info *info,
 			     asection **local_sections)
 {
   struct elf_xtensa_link_hash_table *htab;
+  bfd *output_bfd = info->output_bfd;
   Elf_Internal_Shdr *symtab_hdr;
   Elf_Internal_Rela *rel;
   Elf_Internal_Rela *relend;
@@ -4669,6 +4673,7 @@ elf_xtensa_finish_dynamic_sections (struct bfd_link_info *info,
 {
   struct elf_xtensa_link_hash_table *htab;
   bfd *dynobj;
+  bfd *output_bfd = info->output_bfd;
   asection *sdyn, *srelplt, *srelgot, *sgot, *sxtlit, *sgotloc;
   Elf32_External_Dyn *dyncon, *dynconend;
   int num_xtlit_entries = 0;
