@@ -2470,6 +2470,13 @@ elf_xtensa_size_funcdesc_section (bfd *output_bfd,
   struct elf_xtensa_funcdesc_count_data cd;
   bfd *i;
 
+  /* Plain Xtensa links never create the FDPIC bookkeeping sections, so
+     there is nothing to size here.  FDPIC links create .got.funcdesc in
+     check_relocs before this pass, so its absence is the reliable
+     discriminator between the two link kinds.  */
+  if (htab->sgotfuncdesc == NULL)
+    return true;
+
   cd.count = 0;
   cd.rofixup_count = 0;
   cd.gotfamily_count = 0;
