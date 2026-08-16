@@ -552,9 +552,9 @@ elf_xtensa_before_allocation (void)
    does not define program headers).  */
 
 static void
-elf_xtensa_after_allocation (void)
+gld${EMULATION_NAME}_after_allocation (void)
 {
-  int need_layout = bfd_elf_discard_info (link_info.output_bfd, &link_info);
+  int need_layout = bfd_elf_discard_info (&link_info);
 
   if (elf_elfheader (link_info.output_bfd)->e_ident[EI_OSABI]
       == ELFOSABI_XTENSA_FDPIC)
@@ -2000,4 +2000,4 @@ LDEMUL_BEFORE_PARSE=elf_xtensa_before_parse
 LDEMUL_AFTER_OPEN=elf_xtensa_after_open
 LDEMUL_CHOOSE_TARGET=elf_xtensa_choose_target
 LDEMUL_BEFORE_ALLOCATION=elf_xtensa_before_allocation
-LDEMUL_AFTER_ALLOCATION=elf_xtensa_after_allocation
+LDEMUL_AFTER_ALLOCATION=gld${EMULATION_NAME}_after_allocation
