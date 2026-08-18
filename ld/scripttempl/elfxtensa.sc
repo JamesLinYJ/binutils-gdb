@@ -134,6 +134,15 @@ if test -z "$PLT"; then
   PLT=".plt          ${RELOCATING-0} : { *(.plt) }"
 fi
 test -n "${DATA_PLT-${BSS_PLT-text}}" && TEXT_PLT=yes
+# Keep every non-writable PT_LOAD on distinct file pages when separate-code
+# scripts are requested.  This is required by NOMMU targets that map those
+# pages directly from their executable backing store.
+case "$LD_FLAG" in
+  *textonly*)
+    TEXT_SEGMENT_ALIGN=". = ALIGN(${MAXPAGESIZE});"
+    RODATA_SEGMENT_ALIGN=". = ALIGN(${MAXPAGESIZE});"
+    ;;
+esac
 if test -z "$GOT"; then
   if test -z "$SEPARATE_GOTPLT"; then
     GOT=".got          ${RELOCATING-0} : {${RELOCATING+ *(.got.plt)} *(.got) }"
@@ -412,6 +421,7 @@ cat <<EOF
 
   ${TEXT_PLT+${PLT}}
   ${TINY_READONLY_SECTION}
+  ${RELOCATING+${TEXT_SEGMENT_ALIGN}}
   .text         ${RELOCATING-0} :
   {
     ${RELOCATING+*(.got.plt* .plt*)}
@@ -439,6 +449,7 @@ cat <<EOF
   ${RELOCATING+PROVIDE (__${ETEXT_NAME} = .);}
   ${RELOCATING+PROVIDE (_${ETEXT_NAME} = .);}
   ${RELOCATING+PROVIDE (${ETEXT_NAME} = .);}
+  ${RELOCATING+${RODATA_SEGMENT_ALIGN}}
   ${WRITABLE_RODATA-${RODATA}}
   .rodata1      ${RELOCATING-0} : { *(.rodata1) }
   ${CREATE_SHLIB-${SDATA2}}

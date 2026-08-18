@@ -42,4 +42,5 @@ run_dump_test "relax-undef-weak-local-pie"
 run_dump_test "relax-undef-weak-shared"
 run_dump_test "relax-undef-weak-local-shared"
 
+run_dump_test "separate-code"
 run_dump_test "startstop"
