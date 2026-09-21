@@ -5120,8 +5120,6 @@ dwarf2_compute_name (const char *name,
 		    cu->language_defn->printchar (value, type, &buf);
 		  else
 		    {
-		      struct value_print_options opts;
-
 		      if (baton != NULL)
 			v = dwarf2_evaluate_loc_desc (type, NULL,
 						      baton->expr (),
@@ -5138,9 +5136,10 @@ dwarf2_compute_name (const char *name,
 
 		      /* Specify decimal so that we do not depend on
 			 the radix.  */
-		      get_formatted_print_options (&opts, 'd');
+		      value_print_options opts
+			= get_formatted_print_options ('d');
 		      opts.raw = true;
-		      value_print (v, &buf, &opts);
+		      value_print (v, &buf, opts);
 		      release_value (v);
 		    }
 		}
@@ -10865,8 +10864,8 @@ die_byte_order (die_info *die, dwarf2_cu *cu, enum bfd_endian *byte_order)
    children.  In particular, the fields are computed.  If IS_UNSIGNED
    is set, the enumeration type's sign is already known (a true value
    means unsigned), and so examining the constants to determine the
-   sign isn't needed; when this is unset, the enumerator constants are
-   read as signed values.  */
+   sign isn't needed; when this is unset, the sign is deduced from the
+   constants.  */
 
 static void
 update_enumeration_type_from_children (struct die_info *die,
@@ -10905,9 +10904,10 @@ update_enumeration_type_from_children (struct die_info *die,
 	value = attr->unsigned_constant ().value_or (0);
       else
 	{
-	  /* Read as signed, either because we don't know the sign or
-	     because we know it is definitely signed.  */
-	  value = attr->signed_constant ().value_or (0);
+	  /* The known producers describe negative values using DW_FORM_sdata
+	     and the non-negative values using either DW_FORM_udata or
+	     DW_FORM_data<n>.  */
+	  value = attr->confused_constant ().value_or (0);
 
 	  if (value < 0)
 	    {
@@ -10989,8 +10989,8 @@ read_enumeration_type (struct die_info *die, struct dwarf2_cu *cu)
     type->set_is_stub (true);
 
   /* If the underlying type is known, and is unsigned, then we'll
-     assume the enumerator constants are unsigned.  Otherwise we have
-     to assume they are signed.  */
+     assume the enumerator constants are unsigned.  Otherwise, it will
+     depend on the form.  */
   std::optional<bool> is_unsigned;
 
   /* If this type has an underlying type that is not a stub, then we

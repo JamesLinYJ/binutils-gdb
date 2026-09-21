@@ -1,0 +1,9 @@
+#as: --fdpic
+#readelf: -rW
+#name: FDPIC symbol and upstream ULEB128 relocations have distinct numbers
+
+#...
+0+ +[0-9a-f]+47 +R_XTENSA_SYM32 +0+ +external \+ 0
+#...
+0+ +[0-9a-f]+3f +R_XTENSA_PDIFF_ULEB128 +0+ +\.text \+ 0
+#...

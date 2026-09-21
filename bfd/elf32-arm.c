@@ -13669,6 +13669,19 @@ elf32_arm_final_link (bfd *abfd, struct bfd_link_info *info)
 	}
     }
 
+  /* Process CMSE stubs (they are not part of the stub_group above).  */
+  if (htab->cmse_stub_sec != NULL)
+    {
+      sec = htab->cmse_stub_sec;
+      osec = sec->output_section;
+
+      elf32_arm_write_section (abfd, info, sec, sec->contents);
+
+      if (!bfd_set_section_contents (abfd, osec, sec->contents,
+				     sec->output_offset, sec->size))
+	return false;
+    }
+
   /* Write out any glue sections now that we have created all the
      stubs.  */
   if (globals->bfd_of_glue_owner != NULL)
@@ -20208,6 +20221,7 @@ elf32_arm_backend_symbol_processing (bfd *abfd, asymbol *sym)
 #define elf_backend_want_got_plt       1
 #define elf_backend_want_plt_sym       0
 #define elf_backend_want_dynrelro      1
+#define elf_backend_want_stub_bfd      1
 #define elf_backend_may_use_rel_p      1
 #define elf_backend_may_use_rela_p     0
 #define elf_backend_default_use_rela_p 0

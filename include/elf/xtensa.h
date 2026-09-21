@@ -93,14 +93,16 @@ START_RELOC_NUMBERS (elf_xtensa_reloc_type)
      RELOC_NUMBER (R_XTENSA_NDIFF8, 60)
      RELOC_NUMBER (R_XTENSA_NDIFF16, 61)
      RELOC_NUMBER (R_XTENSA_NDIFF32, 62)
-     /* FDPIC relocations.  R_XTENSA_SYM32, R_XTENSA_FUNCDESC,
+     /* Positive same-section difference encoded as uleb128; rewritten
+	in place after relaxation without changing the section size.  */
+     RELOC_NUMBER (R_XTENSA_PDIFF_ULEB128, 63)
+     /* FDPIC relocations.  R_XTENSA_FUNCDESC,
 	R_XTENSA_FUNCDESC_VALUE and R_XTENSA_TLSDESC match the uClibc-ng
 	definitions.  The GOT family occupies the numbers that uClibc-ng
 	leaves unassigned between them; its members are only ever
 	produced and consumed by the linker and the dynamic loader, so
 	the numbering only needs to be consistent across this toolchain
 	and uClibc-ng.  */
-     RELOC_NUMBER (R_XTENSA_SYM32, 63)
      RELOC_NUMBER (R_XTENSA_GOT, 64)
      RELOC_NUMBER (R_XTENSA_GOTOFF, 65)
      RELOC_NUMBER (R_XTENSA_GOTFUNCDESC, 66)
@@ -110,6 +112,9 @@ START_RELOC_NUMBERS (elf_xtensa_reloc_type)
      /* Link-time offset of an 8-byte TLS descriptor in the module GOT.
 	The dynamic loader only sees R_XTENSA_TLSDESC below.  */
      RELOC_NUMBER (R_XTENSA_GOTTLSDESC, 70)
+     /* 63 is now assigned upstream to PDIFF_ULEB128.  Keep the
+	FDPIC symbol relocation in the previously unused slot 71.  */
+     RELOC_NUMBER (R_XTENSA_SYM32, 71)
      RELOC_NUMBER (R_XTENSA_TLSDESC, 72)
 END_RELOC_NUMBERS (R_XTENSA_max)
 

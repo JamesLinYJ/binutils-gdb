@@ -2305,11 +2305,10 @@ update_watchpoint (struct watchpoint *b, bool reparse)
 
 	  /* If it's a memory location, and GDB actually needed
 	     its contents to evaluate the expression, then we
-	     must watch it.  If the first value returned is
-	     still lazy, that means an error occurred reading it;
+	     must watch it.  If an error occurred reading it,
 	     watch it anyway in case it becomes readable.  */
 	  if (v->lval () == lval_memory
-	      && (v == val_chain[0] || ! v->lazy ()))
+	      && (! v->lazy () || v->fetch_lazy_failed ()))
 	    {
 	      struct type *vtype = check_typedef (v->type ());
 
@@ -5038,9 +5037,8 @@ watchpoint_value_print (struct value *val, struct ui_file *stream)
     fprintf_styled (stream, metadata_style.style (), _("<unreadable>"));
   else
     {
-      struct value_print_options opts;
-      get_user_print_options (&opts);
-      value_print (val, stream, &opts);
+      const value_print_options &opts = get_user_print_options ();
+      value_print (val, stream, opts);
     }
 }
 
@@ -6591,9 +6589,7 @@ print_one_breakpoint_location (struct breakpoint *b,
   struct ui_out *uiout = current_uiout;
   bool header_of_multiple = false;
   bool part_of_multiple = (loc != NULL);
-  struct value_print_options opts;
-
-  get_user_print_options (&opts);
+  const value_print_options &opts = get_user_print_options ();
 
   gdb_assert (!loc || loc_number != 0);
   /* See comment in print_one_breakpoint concerning treatment of
@@ -7081,13 +7077,11 @@ breakpoint_1 (const char *bp_num_list, bool show_internal,
 {
   const bp_location *last_loc = nullptr;
   int nr_printable_breakpoints;
-  struct value_print_options opts;
   int print_address_bits = 0;
   int print_type_col_width = 14;
   struct ui_out *uiout = current_uiout;
   bool has_disabled_by_cond_location = false;
-
-  get_user_print_options (&opts);
+  const value_print_options &opts = get_user_print_options ();
 
   /* Compute the number of rows in the table, as well as the size
      required for address fields.  */
@@ -7374,7 +7368,7 @@ watchpoint_locations_match (const struct bp_location *loc1,
   gdb_assert (w2 != NULL);
 
   /* If the target can evaluate the condition expression in hardware,
-     then we we need to insert both watchpoints even if they are at
+     then we need to insert both watchpoints even if they are at
      the same place.  Otherwise the watchpoint will only trigger when
      the condition of whichever watchpoint was inserted evaluates to
      true, not giving a chance for GDB to check the condition of the
@@ -9140,7 +9134,7 @@ decode_static_tracepoint_spec (const char **arg_p)
   return sals;
 }
 
-/* Returns the breakpoint ops appropriate for use with with LOCATION_TYPE and
+/* Returns the breakpoint ops appropriate for use with LOCATION_TYPE and
    according to IS_TRACEPOINT.  */
 
 static const struct breakpoint_ops *
@@ -9653,13 +9647,12 @@ ranged_breakpoint::print_it (const bpstat *bs) const
 bool
 ranged_breakpoint::print_one (const bp_location **last_loc) const
 {
-  struct value_print_options opts;
   struct ui_out *uiout = current_uiout;
 
   /* Ranged breakpoints have only one location.  */
   gdb_assert (this->has_single_location ());
 
-  get_user_print_options (&opts);
+  const value_print_options &opts = get_user_print_options ();
 
   if (opts.addressprint)
     /* We don't print the address range here, it will be printed later
@@ -10708,12 +10701,12 @@ can_use_hardware_watchpoint (const std::vector<value_ref_ptr> &vals)
 
       if (v->lval () == lval_memory)
 	{
-	  if (v != head && v->lazy ())
+	  if (v->lazy () && ! v->fetch_lazy_failed ())
 	    /* A lazy memory lvalue in the chain is one that GDB never
 	       needed to fetch; we either just used its address (e.g.,
 	       `a' in `a.b') or we never needed it at all (e.g., `a'
-	       in `a,b').  This doesn't apply to HEAD; if that is
-	       lazy then it was not readable, but watch it anyway.  */
+	       in `a,b').  If it failed to fetch a lazy value, then it
+	       was not readable, so watch it in this case as well.  */
 	    ;
 	  else
 	    {
@@ -11840,9 +11833,7 @@ bpstat_remove_bp_location (bpstat *bps, struct breakpoint *bpt)
 void
 code_breakpoint::say_where () const
 {
-  struct value_print_options opts;
-
-  get_user_print_options (&opts);
+  const value_print_options &opts = get_user_print_options ();
 
   /* i18n: cagney/2005-02-11: Below needs to be merged into a
      single string.  */

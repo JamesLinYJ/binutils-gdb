@@ -3827,7 +3827,7 @@ program information from the perspective of the current thread.
 
 @cindex @code{New} @var{systag} message
 @cindex thread identifier (system)
-@c FIXME-implementors!! It would be more helpful if the [New...] message
+@c FIXME-implementers!! It would be more helpful if the [New...] message
 @c included GDB's numeric thread handle, so you could just go to that
 @c thread without first checking `info threads'.
 Whenever @value{GDBN} detects a new thread in your program, it displays
@@ -6440,7 +6440,7 @@ from assembly, C and C@t{++} languages@footnote{See
 @uref{http://sourceware.org/systemtap/wiki/UserSpaceProbeImplementation}
 for a good reference on how the @acronym{SDT} probes are implemented.}.
 
-@item @code{DTrace} (@uref{http://oss.oracle.com/projects/DTrace})
+@item @code{DTrace} (@uref{https://docs.oracle.com/en/operating-systems/oracle-linux/dtrace-guide/})
 @acronym{USDT} probes.  @code{DTrace} probes are usable from C and
 C@t{++} languages.
 @end itemize
@@ -9178,7 +9178,7 @@ If both @var{regexp} and @var{type_regexp} are provided, an argument
 is printed only if its name matches @var{regexp} and its type matches
 @var{type_regexp}.
 
-@item info locals [-q]
+@item info locals [-q] [-shadowed [on|off]]
 @kindex info locals
 Print the local variables of the selected frame, each on a separate
 line.  These are all variables (declared either static or automatic)
@@ -9187,6 +9187,9 @@ accessible at the point of execution of the selected frame.
 The optional flag @samp{-q}, which stands for @samp{quiet}, disables
 printing header information and messages explaining why no local variables
 have been printed.
+
+The optional argument @samp{-shadowed} overrides the @code{set print shadowed}
+setting (@pxref{set print shadowed}) for this invocation of the command.
 
 @smallexample
 @group
@@ -9202,6 +9205,7 @@ have been printed.
 x = 4	<file.c:3>
 y = 52
 x = 3	<file.c:1, shadowed>
+Use "set print shadowed off" to hide shadowed variables.
 @end group
 @end smallexample
 
@@ -9212,7 +9216,8 @@ same name which is declared within an inner scope (decision block,
 method, or inner class).  When shadowing is detected, location
 information is added to all instances of the shadowed variable name.
 The outermost instances are additionally followed by @samp{shadowed}
-to indicate that they are not the active variable.
+to indicate that they are not the active variable.  Printing shadowed
+variables can be controlled by @ref{set print shadowed}.
 
 @item info locals [-q] [-t @var{type_regexp}] [@var{regexp}]
 Like @kbd{info locals}, but only print the local variables selected
@@ -12829,6 +12834,19 @@ Do not pretty print C@t{++} virtual function tables.
 
 @item show print vtbl
 Show whether C@t{++} virtual function tables are pretty printed, or not.
+
+@anchor{set print shadowed}
+@item set print shadowed
+@itemx set print shadowed on
+@cindex printing shadowed variables
+Print variables that are shadowed by a declaration in an inner scope
+(@pxref{shadowed variables}).  The default is on.
+
+@item set print shadowed off
+Do not print shadowed variables.
+
+@item show print shadowed
+Show whether shadowed variables are printed or not.
 @end table
 
 @node Pretty Printing
@@ -28706,6 +28724,15 @@ When @value{GDBN} is debugging the AArch64 architecture, it provides a
 @code{longjmp} when debugging binaries that use the @sc{newlib} C library.
 The ``Newlib'' OS ABI can be selected by @code{set osabi Newlib}.
 
+On Windows, the GNU (MinGW) and MSVC toolchains use different ABIs.
+For example, they disagree on the size of @code{long double}.
+@value{GDBN} provides a separate OS ABI for each: ``Windows-GNU'' and
+``Windows-MSVC''.  A generic ``Windows'' OS ABI is also available.  It
+does not select a flavor directly, but asks @value{GDBN} to pick one:
+@value{GDBN} uses the OS ABI it was configured with by default (from
+the @code{--target} configure option) when that is a Windows flavor,
+and otherwise assumes the GNU flavor.  @xref{Configure Options}.
+
 @table @code
 @item show osabi
 Show the OS ABI currently in use.
@@ -44142,6 +44169,19 @@ with @samp{single-inf-arg+}, then there will only be a single
 @var{argument} string, which includes all inferior arguments,
 separated with whitespace.
 
+If @value{GDBN} didn't send @samp{single-inf-arg}, or the remote
+didn't choose to use this feature, then @value{GDBN} will split the
+inferior arguments before passing them to the remote target.  Single
+and double quotes surrounding any argument will have been removed by
+@value{GDBN}.  Any special shell characters within each argument will
+have been escaped with a backslash character except for quote and
+whitespace characters.  These will not be escaped within the arguments;
+the remote target is expected to escape these characters itself.
+
+These slightly complex rules exist for backward compatibility reasons.
+When implementing a new remote target, it is suggested that the
+@samp{single-inf-arg} feature be supported.
+
 @c FIXME:  What about non-stop mode?
 
 This packet is only available in extended mode (@pxref{extended mode}).
@@ -49491,6 +49531,12 @@ An @samp{<osabi>} element has this form:
 
 @var{abi-name} is an OS ABI name from the same selection accepted by
 @w{@code{set osabi}} (@pxref{ABI, ,Configuring the Current ABI}).
+
+For Windows targets, a stub should report the generic ``Windows'' OS
+ABI rather than ``Windows-GNU'' or ``Windows-MSVC'', as the running
+program does not record which toolchain's ABI it follows.
+@value{GDBN} resolves the generic name to a flavor itself (@pxref{ABI,
+,Configuring the Current ABI}).
 
 @subsection Compatible Architecture
 @cindex @code{<compatible>}

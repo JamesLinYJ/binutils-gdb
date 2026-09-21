@@ -523,8 +523,6 @@ teval_pseudocommand (const char *args, int from_tty)
 const char *
 decode_agent_options (const char *exp, int *trace_string)
 {
-  struct value_print_options opts;
-
   *trace_string = 0;
 
   if (*exp != '/')
@@ -532,7 +530,7 @@ decode_agent_options (const char *exp, int *trace_string)
 
   /* Call this to borrow the print elements default for collection
      size.  */
-  get_user_print_options (&opts);
+  const value_print_options &opts = get_user_print_options ();
 
   exp++;
   if (*exp == 's')
@@ -542,7 +540,7 @@ decode_agent_options (const char *exp, int *trace_string)
 	  /* Allow an optional decimal number giving an explicit maximum
 	     string length, defaulting it to the "print characters" value;
 	     so "collect/s80 mystr" gets at most 80 bytes of string.  */
-	  *trace_string = get_print_max_chars (&opts);
+	  *trace_string = get_print_max_chars (opts);
 	  exp++;
 	  if (*exp >= '0' && *exp <= '9')
 	    *trace_string = atoi (exp);
@@ -873,7 +871,7 @@ collection_list::add_local_register (struct gdbarch *gdbarch,
 
       add_ax_registers (aexpr.get ());
 
-      /* Usually ax_reg_mask for a pseudo-regiser only sets the
+      /* Usually ax_reg_mask for a pseudo-register only sets the
 	 corresponding raw registers in the ax mask, but if this isn't
 	 the case add the expression that is generated to the
 	 collection list.  */
